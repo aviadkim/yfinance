@@ -10,9 +10,9 @@ def home():
     """Default route to confirm the app is running."""
     return "Flask app is running on Railway!"
 
-@app.route("/stock")
+@app.route("/stock", methods=["GET"])
 def get_stock_price():
-    """Endpoint to get the latest stock price."""
+    """Endpoint to get the latest stock price for a given ticker."""
     ticker = request.args.get("ticker")
     if not ticker:
         return jsonify({"error": "Ticker symbol is required"}), 400
@@ -37,19 +37,16 @@ def simulate_autocall():
         # Extract data from the POST request
         stocks = data.get("stocks", [])
         barrier = data.get("barrier", 0.5)
-        if not stocks or not isinstance(stocks, list) or not barrier:
-            return jsonify({"error": "Invalid input. Provide 'stocks' (list) and 'barrier' (float)."}), 400
+        if not stocks or not isinstance(stocks, list) or not isinstance(barrier, (float, int)):
+            return jsonify({"error": "Invalid input. Provide 'stocks' (list) and 'barrier' (float or int)."}), 400
 
-        # Simulate scenarios (placeholder logic)
+        # Simulate scenarios for the stocks (placeholder logic)
         results = {}
         for year in range(1, 4):
-            scenarios = {
-                f"year_{year}": "No autocall. Product continues."
-            }
-            if year == 2:
-                scenarios[f"year_{year}"] = "Autocall triggered in year 2"
+            results[f"year_{year}"] = "No autocall. Product continues."
+            if year == 2:  # Example of autocall triggered in year 2
+                results[f"year_{year}"] = "Autocall triggered in year 2"
                 break
-        results.update(scenarios)
 
         return jsonify(results)
     except Exception as e:
@@ -58,4 +55,4 @@ def simulate_autocall():
 if __name__ == "__main__":
     # Get the port dynamically from the environment or default to 8080
     port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=False)
