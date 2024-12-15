@@ -53,6 +53,6 @@ def simulate_autocall():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    # Get the port dynamically from the environment or default to 5000
-    port = int(os.environ.get("PORT", 5000))
+    # Get the PORT dynamically from the environment or default to 8080
+    port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=False)
