@@ -147,5 +147,5 @@ def analyze_product():
     ))
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    # For local development only - Railway will use gunicorn
+    app.run(host="0.0.0.0", port=8080)
