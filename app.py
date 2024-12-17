@@ -39,19 +39,33 @@ def get_stock_price():
     try:
         stock = yf.Ticker(ticker)
         data = stock.history(period="1d")
-        if data.empty:
-            return jsonify({"error": f"No data found for ticker '{ticker}'"}), 404
         
-        info = stock.info
+        # אם הריק, ננסה "5d" למקרה שהיום אין מסחר:
+        if data.empty:
+            data = stock.history(period="5d")
+            if data.empty:
+                return jsonify({"error": f"No data found for ticker '{ticker}'"}), 404
+
+        # החל מ-0.2.50 אפשר להשתמש ב-get_info(); אם זה לא עובד, fallback ל-info
+        try:
+            info = stock.get_info()
+        except:
+            info = getattr(stock, 'info', {})
+        
         current_price = float(data['Close'].iloc[-1])
         
         response = {
             "ticker": ticker.upper(),
             "price": current_price,
-            "currency": info.get('currency', 'USD'),
             "timestamp": datetime.now().isoformat()
         }
 
+        # אם יש currency במידע
+        currency = info.get('currency')
+        if currency:
+            response["currency"] = currency
+
+        # אם יש שם חברה
         if 'longName' in info:
             response["company_name"] = info['longName']
             
@@ -104,7 +118,9 @@ def simulate_autocall():
                 stock = yf.Ticker(ticker)
                 hist = stock.history(period="1d")
                 if hist.empty:
-                    return jsonify({"error": f"No data found for {ticker}"}), 404
+                    hist = stock.history(period="5d")
+                    if hist.empty:
+                        return jsonify({"error": f"No data found for {ticker}"}), 404
                 price = float(hist['Close'].iloc[-1])
                 initial_prices[ticker] = price
                 current_prices[ticker] = price
@@ -119,9 +135,9 @@ def simulate_autocall():
         simulation_completed = False
         
         for quarter in range(1, 13):  # 3 years = 12 quarters
-            # Simulate price movements
+            # Simulate price movements (10% volatility)
             simulated_prices = {
-                ticker: price * (1 + np.random.normal(0, 0.1))  # 10% volatility
+                ticker: price * (1 + np.random.normal(0, 0.1))
                 for ticker, price in current_prices.items()
             }
             
