@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file  # Note: Added send_file import
 from flask_cors import CORS
 import yfinance as yf
 from datetime import datetime, timedelta
@@ -207,6 +207,16 @@ def simulate_autocall():
             "error": "Simulation failed",
             "details": str(e)
         }), 500
+
+# ------------------ NEW ROUTES FOR PLUGIN FILES -------------------
+@app.route('/ai-plugin.json')
+def serve_ai_plugin():
+    return send_file('ai-plugin.json', mimetype='application/json')
+
+@app.route('/openapi.yaml')
+def serve_openapi():
+    return send_file('openapi.yaml', mimetype='text/yaml')
+# -------------------------------------------------------------------
 
 if __name__ == "__main__":
     # For local development only - Railway will use gunicorn
