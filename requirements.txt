@@ -4,3 +4,7 @@ numpy==1.26.4
 Flask-Cors==4.0.0
 gunicorn==21.2.0
 pandas>=2.0.0
+# אופציונלי אם צריך
+# requests_html
+# lxml
+# html5lib
