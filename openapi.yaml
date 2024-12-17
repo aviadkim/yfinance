@@ -1,1 +1,109 @@
+openapi: 3.1.0
+info:
+  title: Movne YFinance API
+  description: Fetch real-time stock data and simulate structured products
+  version: "1.0.0"
+servers:
+  - url: https://yfinance-production.up.railway.app
+paths:
+  /stock:
+    get:
+      operationId: get__stock
+      summary: Get stock price
+      description: Returns real-time stock data for a given ticker
+      parameters:
+        - name: ticker
+          in: query
+          required: true
+          description: Ticker symbol (e.g. MSFT, AAPL)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response with stock data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticker:
+                    type: string
+                  company_name:
+                    type: string
+                  currency:
+                    type: string
+                  data_timestamp:
+                    type: string
+                    format: date-time
+                  day_high:
+                    type: number
+                  day_low:
+                    type: number
+                  last_price:
+                    type: number
+                  price:
+                    type: number
+                  request_timestamp:
+                    type: string
+                    format: date-time
+                  volume:
+                    type: number
+                required:
+                  - ticker
+                  - price
+
+  /simulate_autocall:
+    post:
+      operationId: post__simulate_autocall
+      summary: Simulate autocall structured product
+      description: Runs a 3-year simulation of a barrier autocall product with quarterly coupon checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stocks:
+                  type: array
+                  description: List of exactly 3 ticker symbols
+                  items:
+                    type: string
+                barrier:
+                  type: number
+                  description: Barrier level (0 to 1)
+                initial_investment:
+                  type: number
+                  description: The principal investment amount
+                coupon_rate:
+                  type: number
+                  description: Annual coupon rate (0 to 1)
+      responses:
+        '200':
+          description: Successfully simulated the autocall product
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  simulation_id:
+                    type: string
+                  initial_investment:
+                    type: number
+                  barrier_level:
+                    type: number
+                  annual_coupon_rate:
+                    type: number
+                  stock_info:
+                    type: object
+                  initial_prices:
+                    type: object
+                  barrier_prices:
+                    type: object
+                  quarterly_results:
+                    type: array
+                    items:
+                      type: object
+                  simulation_completed:
+                    type: boolean
 
