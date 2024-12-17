@@ -7,176 +7,144 @@ import numpy as np
 import pandas as pd
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)
 
-@app.route('/')
-def home():
-    try:
-        return jsonify({
-            "status": "success",
-            "message": "YFinance API is running",
-            "timestamp": datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+class FinanceAnalyzer:
+    @staticmethod
+    def get_stock_info(ticker):
+        """Get current stock information with error handling"""
+        try:
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period="1y")
+            
+            if hist.empty:
+                return {"error": f"No data found for {ticker}"}
+            
+            current_price = hist['Close'].iloc[-1]
+            year_high = hist['High'].max()
+            year_low = hist['Low'].min()
+            yearly_return = ((current_price - hist['Open'].iloc[0]) / hist['Open'].iloc[0]) * 100
+            volatility = hist['Close'].pct_change().std() * np.sqrt(252)
+            
+            # Get company info safely
+            try:
+                info = stock.get_info()
+            except:
+                info = {}
+            
+            return {
+                "ticker": ticker,
+                "company_name": info.get('longName', ticker),
+                "current_price": round(current_price, 2),
+                "year_high": round(year_high, 2),
+                "year_low": round(year_low, 2),
+                "yearly_return": round(yearly_return, 2),
+                "volatility": round(volatility * 100, 2),
+                "currency": info.get('currency', 'USD'),
+                "sector": info.get('sector', 'Unknown'),
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            return {"error": f"Error fetching data for {ticker}: {str(e)}"}
 
+    @staticmethod
+    def analyze_structured_product(tickers, initial_investment, barrier, coupon_rate, term_years):
+        """Analyze structured product with multiple stocks"""
+        try:
+            stocks_data = {}
+            for ticker in tickers:
+                stock_info = FinanceAnalyzer.get_stock_info(ticker)
+                if "error" in stock_info:
+                    return {"error": stock_info["error"]}
+                stocks_data[ticker] = stock_info
+            
+            barrier_levels = {
+                ticker: data["current_price"] * barrier 
+                for ticker, data in stocks_data.items()
+            }
+            
+            quarterly_coupon = (coupon_rate * initial_investment) / 4
+            total_quarters = term_years * 4
+            max_return = quarterly_coupon * total_quarters
+            max_return_pct = (max_return / initial_investment) * 100
+            worst_case_loss = (barrier - 1) * initial_investment
+            
+            return {
+                "analysis_timestamp": datetime.now().isoformat(),
+                "product_details": {
+                    "initial_investment": initial_investment,
+                    "barrier_level": f"{barrier * 100}%",
+                    "coupon_rate": f"{coupon_rate * 100}%",
+                    "term": f"{term_years} years",
+                    "payment_frequency": "Quarterly"
+                },
+                "underlying_stocks": stocks_data,
+                "barrier_levels": {t: round(b, 2) for t, b in barrier_levels.items()},
+                "scenarios": {
+                    "best_case": {
+                        "description": "All stocks remain above barrier",
+                        "quarterly_coupon": round(quarterly_coupon, 2),
+                        "annual_return": f"{round(coupon_rate * 100, 2)}%",
+                        "total_return": round(max_return, 2),
+                        "return_percentage": f"{round(max_return_pct, 2)}%"
+                    },
+                    "worst_case": {
+                        "description": "One or more stocks fall below barrier",
+                        "maximum_loss": round(abs(worst_case_loss), 2),
+                        "loss_percentage": f"{round((worst_case_loss/initial_investment) * 100, 2)}%"
+                    }
+                }
+            }
+        except Exception as e:
+            return {"error": f"Error analyzing structured product: {str(e)}"}
+
+# API Routes
 @app.route('/health')
 def health_check():
+    """Health check endpoint"""
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.now().isoformat()
     })
 
-@app.route("/stock", methods=["GET"])
-def get_stock_price():
-    ticker = request.args.get("ticker")
-    if not ticker:
-        return jsonify({"error": "Ticker symbol is required"}), 400
+@app.route('/stock/<ticker>')
+def get_stock(ticker):
+    """Get stock information"""
+    return jsonify(FinanceAnalyzer.get_stock_info(ticker))
+
+@app.route('/stocks', methods=['POST'])
+def get_multiple_stocks():
+    """Get information for multiple stocks"""
+    data = request.get_json()
+    if not data or 'tickers' not in data:
+        return jsonify({"error": "Please provide tickers list"}), 400
+        
+    results = {}
+    for ticker in data['tickers']:
+        results[ticker] = FinanceAnalyzer.get_stock_info(ticker)
+    return jsonify(results)
+
+@app.route('/analyze_product', methods=['POST'])
+def analyze_product():
+    """Analyze structured product"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
     
-    try:
-        stock = yf.Ticker(ticker)
-        data = stock.history(period="1d")
-        if data.empty:
-            return jsonify({"error": f"No data found for ticker '{ticker}'"}), 404
-        
-        info = stock.info
-        current_price = float(data['Close'].iloc[-1])
-        
-        response = {
-            "ticker": ticker.upper(),
-            "price": current_price,
-            "currency": info.get('currency', 'USD'),
-            "timestamp": datetime.now().isoformat()
-        }
-
-        if 'longName' in info:
-            response["company_name"] = info['longName']
-            
-        return jsonify(response)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-def calculate_coupon_payment(prices, barrier_levels, coupon_rate, initial_investment):
-    try:
-        all_above_barrier = all(
-            price >= barrier for price, barrier in zip(prices, barrier_levels)
-        )
-        coupon_amount = initial_investment * (coupon_rate / 4) if all_above_barrier else 0
-        
-        return {
-            "paid": all_above_barrier,
-            "amount": round(coupon_amount, 2),
-            "reason": "All stocks above barrier" if all_above_barrier else "One or more stocks below barrier"
-        }
-    except Exception as e:
-        raise ValueError(f"Error in coupon calculation: {str(e)}")
-
-@app.route("/simulate_autocall", methods=["POST"])
-def simulate_autocall():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "Request body is required"}), 400
-
-        # Extract and validate input parameters
-        stocks = data.get("stocks", [])
-        barrier = float(data.get("barrier", 0.5))  # 50% barrier
-        initial_investment = float(data.get("initial_investment", 100000))
-        coupon_rate = float(data.get("coupon_rate", 0.08))  # 8% annual
-
-        if len(stocks) != 3:
-            return jsonify({"error": "Exactly 3 stock tickers are required"}), 400
-        
-        if not (0 < barrier < 1):
-            return jsonify({"error": "Barrier must be between 0 and 1"}), 400
-        
-        if not (0 < coupon_rate < 1):
-            return jsonify({"error": "Coupon rate must be between 0 and 1"}), 400
-
-        # Fetch current stock prices
-        initial_prices = {}
-        current_prices = {}
-        try:
-            for ticker in stocks:
-                stock = yf.Ticker(ticker)
-                hist = stock.history(period="1d")
-                if hist.empty:
-                    return jsonify({"error": f"No data found for {ticker}"}), 404
-                price = float(hist['Close'].iloc[-1])
-                initial_prices[ticker] = price
-                current_prices[ticker] = price
-        except Exception as e:
-            return jsonify({"error": f"Error fetching stock data: {str(e)}"}), 500
-
-        # Calculate barrier prices
-        barrier_prices = {ticker: price * barrier for ticker, price in initial_prices.items()}
-
-        # Simulate quarters
-        quarters = []
-        simulation_completed = False
-        
-        for quarter in range(1, 13):  # 3 years = 12 quarters
-            # Simulate price movements
-            simulated_prices = {
-                ticker: price * (1 + np.random.normal(0, 0.1))  # 10% volatility
-                for ticker, price in current_prices.items()
-            }
-            
-            # Calculate coupon
-            coupon_result = calculate_coupon_payment(
-                list(simulated_prices.values()),
-                list(barrier_prices.values()),
-                coupon_rate,
-                initial_investment
-            )
-
-            quarter_data = {
-                "quarter": quarter,
-                "year": (quarter - 1) // 4 + 1,
-                "prices": {t: round(p, 2) for t, p in simulated_prices.items()},
-                "coupon_paid": coupon_result["paid"],
-                "coupon_amount": coupon_result["amount"],
-                "reason": coupon_result["reason"]
-            }
-
-            # Check autocall condition (every 4th quarter)
-            if quarter % 4 == 0:
-                all_above_initial = all(
-                    simulated_prices[ticker] >= initial_prices[ticker]
-                    for ticker in stocks
-                )
-                if all_above_initial:
-                    quarter_data["autocall_triggered"] = True
-                    quarter_data["redemption_amount"] = initial_investment
-                    simulation_completed = True
-
-            quarters.append(quarter_data)
-            current_prices = simulated_prices
-
-            if simulation_completed:
-                break
-
-        response = {
-            "simulation_id": datetime.now().strftime("%Y%m%d%H%M%S"),
-            "initial_investment": initial_investment,
-            "barrier_level": barrier,
-            "annual_coupon_rate": coupon_rate,
-            "initial_prices": {t: round(p, 2) for t, p in initial_prices.items()},
-            "barrier_prices": {t: round(p, 2) for t, p in barrier_prices.items()},
-            "quarterly_results": quarters,
-            "simulation_completed": simulation_completed
-        }
-
-        return jsonify(response)
-
-    except Exception as e:
-        return jsonify({
-            "error": "Simulation failed",
-            "details": str(e)
-        }), 500
+    required_fields = ['tickers', 'initial_investment', 'barrier', 'coupon_rate', 'term_years']
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": f"Missing required fields. Please provide: {', '.join(required_fields)}"}), 400
+    
+    if len(data['tickers']) != 3:
+        return jsonify({"error": "Please provide exactly 3 stock tickers"}), 400
+    
+    return jsonify(FinanceAnalyzer.analyze_structured_product(
+        tickers=data['tickers'],
+        initial_investment=float(data['initial_investment']),
+        barrier=float(data['barrier']),
+        coupon_rate=float(data['coupon_rate']),
+        term_years=int(data['term_years'])
+    ))
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
