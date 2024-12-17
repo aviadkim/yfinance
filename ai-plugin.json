@@ -1,1 +1,19 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Movne YFinance Plugin",
+  "name_for_model": "movneYFinance",
+  "description_for_human": "Fetch real-time stock prices and simulate structured products.",
+  "description_for_model": "Use this plugin to retrieve real-time stock data for any ticker and run an autocall simulation.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://yfinance-production.up.railway.app/openapi.yaml",
+    "is_user_authenticated": false
+  },
+  "logo_url": "https://yfinance-production.up.railway.app/logo.png",
+  "contact_email": "info@movne.co.il",
+  "legal_info_url": "https://movne.co.il/legal"
+}
 
