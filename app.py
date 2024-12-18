@@ -14,9 +14,10 @@ def get_stock_info_safe(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
     # Get historical data first (most reliable)
-    hist = stock.history(period="2d")
+    # Changed from '2d' to '1d' as '2d' is not valid anymore
+    hist = stock.history(period="1d")
     if hist.empty:
-        hist = stock.history(period="5d")  # Try longer period if 2d is empty
+        hist = stock.history(period="5d")  # Try longer period if 1d is empty
         if hist.empty:
             raise ValueError(f"No historical data found for {ticker_symbol}")
     
